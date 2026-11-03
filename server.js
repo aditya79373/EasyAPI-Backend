@@ -1,6 +1,7 @@
 import "dotenv/config";
 console.log("JWT_SECRET loaded?", !!process.env.JWT_SECRET);
 import express from "express";
+import { OAuth2Client } from "google-auth-library";
 import mongoose from "mongoose";
 import cors from "cors";
 import crypto from "crypto";
@@ -11,6 +12,7 @@ import multer from "multer";
 import net from "net";
 import { v2 as cloudinary } from "cloudinary";
 const app = express();
+const googleClient = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
 app.use(cors());
 app.use(express.json({ limit: "2mb" }));
 
@@ -30,7 +32,11 @@ const userSchema = new mongoose.Schema(
   {
     name: { type: String, default: "", trim: true },
     email: { type: String, required: true, unique: true, lowercase: true, trim: true },
-    password: { type: String, required: true },
+        password: {
+      type: String,
+      required: function () { return !this.googleId; },
+    },
+    googleId: { type: String, index: true },
     workspace: { type: String, default: "My Workspace" },
     avatar: { type: String, default: "" },
     workspaceOwner: { type: mongoose.Schema.Types.ObjectId, ref: "User", default: null },
@@ -177,7 +183,10 @@ app.post("/api/auth/login", async (req, res) => {
 
     if (!user)
       return res.status(404).json({ message: "Account not registered" });
-
+        if (!user.password)
+      return res.status(400).json({
+        message: "This account uses Google sign-in. Use 'Continue with Google'.",
+      });
     const ok = await bcrypt.compare(password || "", user.password);
     if (!ok)
       return res.status(401).json({ message: "Incorrect password" });
@@ -186,6 +195,37 @@ app.post("/api/auth/login", async (req, res) => {
   } catch (err) {
     console.error(err);
     res.status(500).json({ message: "Server error" });
+  }
+});
+app.post("/api/auth/google", async (req, res) => {
+  try {
+    const { credential } = req.body;
+    if (!credential)
+      return res.status(400).json({ message: "Missing Google credential" });
+
+    const ticket = await googleClient.verifyIdToken({
+      idToken: credential,
+      audience: process.env.GOOGLE_CLIENT_ID,
+    });
+    const p = ticket.getPayload();
+    if (!p?.email || !p.email_verified)
+      return res.status(401).json({ message: "Google email not verified" });
+
+    const email = p.email.toLowerCase();
+    let user = await User.findOne({ email });
+
+    if (!user) {
+      // naya user: login ya register, kisi bhi screen se account ban jaayega
+      user = await User.create({ name: p.name || "", email, googleId: p.sub });
+    } else if (!user.googleId) {
+      user.googleId = p.sub; // purana email/password account link ho gaya
+      await user.save();
+    }
+
+    res.json({ token: sign(user), user: publicUser(user) });
+  } catch (err) {
+    console.error("Google auth error:", err.message);
+    res.status(401).json({ message: "Google sign-in failed" });
   }
 });
 // ---------- Auth middleware ----------
