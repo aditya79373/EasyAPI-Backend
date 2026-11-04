@@ -1310,6 +1310,8 @@ mongoose
   .then(() => {
     console.log("MongoDB connected");
     startMonitor();
+    heartbeat();
+    setInterval(heartbeat, 60 * 1000);
     app.listen(process.env.PORT || 5000, () =>
       console.log(`Server on port ${process.env.PORT || 5000}`)
     );
