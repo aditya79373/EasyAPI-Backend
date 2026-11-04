@@ -343,9 +343,9 @@ app.post("/api/auth/avatar", auth, upload.single("avatar"), async (req, res) => 
       public_id: String(req.userId),
       overwrite: true,
       invalidate: true,
-      transformation: [{ width: 400, height: 400, crop: "fill", gravity: "face" }],
+      transformation: [{ width: 1200, height: 1200, crop: "limit" }],
     });
-
+    
     const user = await User.findByIdAndUpdate(
       req.userId,
       { avatar: result.secure_url },
