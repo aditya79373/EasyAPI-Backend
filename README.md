@@ -81,9 +81,3 @@ All authenticated routes expect `Authorization: Bearer <token>`.
 - Linked workspaces are always **Viewer** (read-only): write requests are rejected.
 - Invite statuses: `Pending`, `Active`, and `Declined` (shown as "Rejected" in the UI). A removed member can be invited again.
 
-## Deployment (Render)
-
-1. Create a new **Web Service** from this repository.
-2. Build command: `corepack pnpm install`. Start command: `node server.js`.
-3. Add the same environment variables in the service settings.
-4. Allow your frontend's URL in CORS and set the frontend's `VITE_API_URL` to this service's URL.
